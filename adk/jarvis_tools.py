@@ -47,6 +47,28 @@ _KNOWN_SITES = {
     "claude": "https://claude.ai",
 }
 
+# Common Windows utility apps that "start <name>" can't find by their everyday
+# spoken name — there's no plain Calculator.exe/etc. on PATH on modern Windows,
+# since several of these ship as packaged apps launched through App Execution
+# Aliases (which some users disable) or the AppsFolder shell namespace instead
+# of a normal .exe. Calculator specifically is resolved via the AppsFolder path
+# so it works even if its "calc" alias has been turned off in Settings.
+_KNOWN_APPS_WINDOWS = {
+    "calculator": 'explorer.exe shell:appsFolder\\Microsoft.WindowsCalculator_8wekyb3d8bbwe!App',
+    "calc": 'explorer.exe shell:appsFolder\\Microsoft.WindowsCalculator_8wekyb3d8bbwe!App',
+    "notepad": 'start "" notepad',
+    "paint": 'start "" mspaint',
+    "file explorer": 'start "" explorer',
+    "explorer": 'start "" explorer',
+    "task manager": 'start "" taskmgr',
+    "control panel": 'start "" control',
+    "command prompt": 'start "" cmd',
+    "cmd": 'start "" cmd',
+    "powershell": 'start "" powershell',
+    "settings": "start ms-settings:",
+    "snipping tool": "start ms-screenclip:",
+}
+
 # Substrings that make a shell command an automatic refusal, regardless of
 # framing or who's asking. Not a complete blocklist — a determined user could
 # get around it — but it stops the obvious footguns a voice command could
@@ -76,12 +98,35 @@ async def open_app(app_name: str) -> dict:
     system = platform.system()
     try:
         if system == "Darwin":
-            proc = await asyncio.create_subprocess_exec("open", "-a", app_name)
+            proc = await asyncio.create_subprocess_exec(
+                "open", "-a", app_name,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
         elif system == "Windows":
-            proc = await asyncio.create_subprocess_shell(f'start "" "{app_name}"')
+            # A handful of common utility apps (Calculator, Notepad, ...) don't
+            # resolve as plain PATH executables on modern Windows — see
+            # _KNOWN_APPS_WINDOWS above. Anything else falls back to the old
+            # "start <name>" guess, which works for most normally-installed
+            # desktop apps (VS Code, Spotify, Steam, etc.).
+            shell_cmd = _KNOWN_APPS_WINDOWS.get(app_name.strip().lower(), f'start "" "{app_name}"')
+            proc = await asyncio.create_subprocess_shell(
+                shell_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
         else:
-            proc = await asyncio.create_subprocess_exec("xdg-open", app_name)
-        await proc.wait()
+            proc = await asyncio.create_subprocess_exec(
+                "xdg-open", app_name,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
+        stdout, stderr = await proc.communicate()
+        if proc.returncode not in (0, None):
+            # Previously this was reported as "ok" regardless of exit code, so a
+            # genuinely-missing app silently "succeeded" and JARVIS had no way to
+            # know it didn't actually open — surface the real failure instead.
+            msg = (stderr or stdout or b"").decode(errors="ignore").strip()
+            return {
+                "result": "error",
+                "message": msg or f"couldn't find or launch '{app_name}' (exit code {proc.returncode})",
+            }
         return {"result": "ok", "opened": app_name}
     except Exception as e:
         return {"result": "error", "message": str(e)}
