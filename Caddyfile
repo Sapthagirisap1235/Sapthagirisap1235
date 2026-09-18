@@ -1,0 +1,6 @@
+# Replace with your real domain. Caddy automatically gets and renews a
+# Let's Encrypt certificate for it the first time it starts — no manual
+# certbot, no manual renewal.
+your-domain-here.com {
+    reverse_proxy jarvis:8000
+}

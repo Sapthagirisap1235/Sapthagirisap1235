@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>jarvis</title>
+<style>
+  :root { --accent:#7ec8e3; --accent2:#3a6ea5; --ink:#dce8ee; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; color: var(--ink);
+    font-family: ui-sans-serif, system-ui, Inter, sans-serif;
+    background:
+      radial-gradient(ellipse at 15% 5%, rgba(126,200,227,0.08) 0%, transparent 45%),
+      radial-gradient(ellipse at 85% 95%, rgba(58,110,165,0.08) 0%, transparent 45%),
+      #0a0d10;
+    display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+  }
+  .chrome { width: 100%; padding: 22px 28px; display: flex; justify-content: space-between;
+    font-size: 10px; letter-spacing: 0.28em; text-transform: uppercase; color: rgba(220,232,238,0.28); }
+  .stage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; }
+  /* Siri-style orb: a soft conic swirl of blue/purple/pink/orange, always slowly rotating and
+     color-cycling; per-state classes only change how fast it swirls, how much it breathes/pulses,
+     and its overall opacity — the hue motion never fully stops, it just eases. */
+  .orb {
+    width: 260px; height: 260px; border-radius: 50%;
+    background: conic-gradient(from 0deg,
+      #4f8cff, #6a7dff, #8a6bff, #a866ea, #d666d6, #ee6bb0, #ff7a8a, #ff9a6c, #ffb35c, #f5c15a, #4f8cff);
+    filter: saturate(1.15) brightness(1.05);
+    box-shadow: 0 0 50px 6px rgba(138,107,255,0.35), 0 0 90px 20px rgba(255,122,138,0.18);
+    opacity: 0.85; transition: opacity .4s;
+    animation: swirl 10s linear infinite, breathe 4.5s ease-in-out infinite;
+  }
+  .orb.idle      { opacity: 0.55; animation: swirl 14s linear infinite, breathe 4.5s ease-in-out infinite; }
+  .orb.listening { opacity: 0.75; animation: swirl 7s linear infinite, pulse 1.6s ease-in-out infinite; }
+  .orb.thinking  { opacity: 0.5;  animation: swirl 20s linear infinite; }
+  .orb.speaking  { opacity: 0.95; animation: swirl 3.5s linear infinite, speak 2.8s ease-in-out infinite; }
+  @keyframes swirl    { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  @keyframes breathe  { 0%,100%{transform:scale(1)} 50%{transform:scale(1.05)} }
+  @keyframes pulse    { 0%,100%{transform:scale(1.0);opacity:.65} 50%{transform:scale(1.09);opacity:.9} }
+  @keyframes speak    { 0%,100%{transform:scale(1.03) brightness(1)} 50%{transform:scale(1.15) brightness(1.3)} }
+  .status { font-style: italic; font-size: 14px; color: rgba(220,232,238,0.6); min-height: 20px; }
+  .info { width: 100%; padding: 18px 28px 28px;
+    background: linear-gradient(to top, rgba(10,13,16,0.9), transparent); text-align: center; }
+  .now { font-size: 12px; letter-spacing: 0.06em; color: rgba(220,232,238,0.55); min-height: 16px; }
+  .transcript { max-width: 560px; margin: 10px auto 0; max-height: 120px; overflow-y: auto;
+    font-size: 12px; line-height: 1.7; color: rgba(220,232,238,0.5); text-align: left; }
+  .line.jarvis { color: var(--accent); }
+  .line.tool { color: rgba(220,232,238,0.4); font-style: italic; }
+  .line.tool a { text-decoration: underline; }
+
+  /* YouTube panel: hidden until the first result/play, then a fixed-height
+     scrollable results list + a 16:9 player, side by side on wide screens. */
+  .yt-panel { display: none; width: 100%; max-width: 640px; margin: 14px auto 0; gap: 10px;
+    flex-direction: column; }
+  .yt-panel.open { display: flex; }
+  .yt-results { max-height: 180px; overflow-y: auto; border: 1px solid rgba(220,232,238,0.12);
+    border-radius: 10px; background: rgba(255,255,255,0.02); }
+  .yt-item { display: flex; gap: 10px; padding: 8px 10px; cursor: pointer; align-items: center; }
+  .yt-item:hover { background: rgba(255,255,255,0.04); }
+  .yt-item img { width: 64px; height: 36px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
+  .yt-meta { min-width: 0; }
+  .yt-title { font-size: 12px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .yt-channel { font-size: 10px; color: rgba(220,232,238,0.45); }
+  .yt-player { width: 100%; aspect-ratio: 16/9; border-radius: 10px; overflow: hidden;
+    background: #000; }
+  .yt-player iframe { width: 100%; height: 100%; border: 0; }
+  button { margin-top: 14px; background: transparent; color: var(--ink); border: 1px solid rgba(220,232,238,0.35);
+    border-radius: 999px; padding: 10px 22px; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button:disabled { opacity: 0.7; }
+  .hint { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(220,232,238,0.22); margin-top: 12px; }
+</style>
+</head>
+<body>
+  <div class="chrome"><span>jarvis</span><span>voice + tools</span><span>gemini live</span></div>
+
+  <div class="stage">
+    <div id="orb" class="orb idle"></div>
+    <div id="status" class="status">tap the mic, then talk to jarvis</div>
+  </div>
+
+  <div class="info">
+    <div id="nowplaying" class="now"></div>
+    <div id="transcript" class="transcript"></div>
+    <div id="yt-panel" class="yt-panel">
+      <div id="yt-player" class="yt-player"></div>
+      <div id="yt-results" class="yt-results"></div>
+    </div>
+    <button id="talk">🎙 talk</button>
+    <div class="hint">headphones on — it can hear itself otherwise</div>
+  </div>
+
+  <audio id="music" loop></audio>
+  <script src="/main.js"></script>
+</body>
+</html>

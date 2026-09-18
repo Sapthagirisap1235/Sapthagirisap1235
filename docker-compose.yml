@@ -1,0 +1,34 @@
+# Two containers: jarvis (the app) behind caddy (automatic HTTPS via Let's Encrypt).
+# Point your domain's A record at this server's IP, put that domain in Caddyfile,
+# then: docker compose up -d --build
+services:
+  jarvis:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Keep the memory DB on the named volume below, not the container's
+      # writable layer, so `docker compose up --build` doesn't wipe memory.
+      - DB_URL=sqlite+aiosqlite:////data/jarvis_memory.db
+    volumes:
+      - jarvis-data:/data
+    expose:
+      - "8000"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - jarvis
+
+volumes:
+  jarvis-data:
+  caddy-data:
+  caddy-config:
