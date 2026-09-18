@@ -7,6 +7,7 @@
 <style>
   :root { --accent:#7ec8e3; --accent2:#3a6ea5; --ink:#dce8ee; }
   * { box-sizing: border-box; }
+  html, body { height: auto; }
   body {
     margin: 0; min-height: 100vh; color: var(--ink);
     font-family: ui-sans-serif, system-ui, Inter, sans-serif;
@@ -15,6 +16,7 @@
       radial-gradient(ellipse at 85% 95%, rgba(58,110,165,0.08) 0%, transparent 45%),
       #0a0d10;
     display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+    overflow-y: auto;
   }
   .chrome { width: 100%; padding: 22px 28px; display: flex; justify-content: space-between;
     font-size: 10px; letter-spacing: 0.28em; text-transform: uppercase; color: rgba(220,232,238,0.28); }
@@ -44,17 +46,20 @@
     background: linear-gradient(to top, rgba(10,13,16,0.9), transparent); text-align: center; }
   .now { font-size: 12px; letter-spacing: 0.06em; color: rgba(220,232,238,0.55); min-height: 16px; }
   .transcript { max-width: 560px; margin: 10px auto 0; max-height: 120px; overflow-y: auto;
+    -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
     font-size: 12px; line-height: 1.7; color: rgba(220,232,238,0.5); text-align: left; }
   .line.jarvis { color: var(--accent); }
   .line.tool { color: rgba(220,232,238,0.4); font-style: italic; }
   .line.tool a { text-decoration: underline; }
 
-  /* YouTube panel: hidden until the first result/play, then a fixed-height
-     scrollable results list + a 16:9 player, side by side on wide screens. */
+  /* YouTube results panel: hidden until the first search, then a fixed-height
+     scrollable list. Clicking (or a voice "play the second one") opens the real
+     youtube.com/watch page in a new tab — nothing plays inside this page. */
   .yt-panel { display: none; width: 100%; max-width: 640px; margin: 14px auto 0; gap: 10px;
     flex-direction: column; }
   .yt-panel.open { display: flex; }
-  .yt-results { max-height: 180px; overflow-y: auto; border: 1px solid rgba(220,232,238,0.12);
+  .yt-results { max-height: 180px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain; border: 1px solid rgba(220,232,238,0.12);
     border-radius: 10px; background: rgba(255,255,255,0.02); }
   .yt-item { display: flex; gap: 10px; padding: 8px 10px; cursor: pointer; align-items: center; }
   .yt-item:hover { background: rgba(255,255,255,0.04); }
@@ -62,9 +67,6 @@
   .yt-meta { min-width: 0; }
   .yt-title { font-size: 12px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .yt-channel { font-size: 10px; color: rgba(220,232,238,0.45); }
-  .yt-player { width: 100%; aspect-ratio: 16/9; border-radius: 10px; overflow: hidden;
-    background: #000; }
-  .yt-player iframe { width: 100%; height: 100%; border: 0; }
   button { margin-top: 14px; background: transparent; color: var(--ink); border: 1px solid rgba(220,232,238,0.35);
     border-radius: 999px; padding: 10px 22px; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; cursor: pointer; }
   button:hover { border-color: var(--accent); }
@@ -84,7 +86,6 @@
     <div id="nowplaying" class="now"></div>
     <div id="transcript" class="transcript"></div>
     <div id="yt-panel" class="yt-panel">
-      <div id="yt-player" class="yt-player"></div>
       <div id="yt-results" class="yt-results"></div>
     </div>
     <button id="talk">🎙 talk</button>
