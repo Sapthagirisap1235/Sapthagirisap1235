@@ -71,7 +71,10 @@ function openUrl(url) {
   }
 }
 
-// ---------- YouTube search + embedded player (driven by youtube_search/_play/scroll) ----------
+// ---------- YouTube search (server) + real youtube.com playback (this browser) ----------
+// The results list stays on this page so it's scrollable/tappable, but PLAYING a video
+// never embeds it here — it opens the actual youtube.com (or the YouTube app on mobile)
+// in a new tab/window, same mechanism as openUrl() below.
 function showYoutubeResults(results) {
   ytResults = results;
   const panel = $("yt-panel"), list = $("yt-results");
@@ -90,17 +93,13 @@ function showYoutubeResults(results) {
   panel.classList.add("open");
 }
 function playYoutube(indexOrId) {
-  const panel = $("yt-panel"), player = $("yt-player");
-  if (!panel || !player) return;
   let id = indexOrId;
   if (/^\d+$/.test(indexOrId)) {
     const r = ytResults[parseInt(indexOrId, 10) - 1];
     if (!r) { addLine("tool", `→ no result #${indexOrId}`); return; }
     id = r.video_id;
   }
-  player.innerHTML = `<iframe src="https://www.youtube.com/embed/${id}?autoplay=1"
-    allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`;
-  panel.classList.add("open");
+  openUrl(`https://www.youtube.com/watch?v=${id}`);
 }
 function scrollYoutube(direction) {
   const list = $("yt-results");
