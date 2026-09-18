@@ -1,18 +1,16 @@
-"""YouTube search + an embedded, JARVIS-controllable results/player panel.
+"""YouTube search + real-tab playback, plus a JARVIS-controllable results list.
 
-Why this exists instead of just "open YouTube": once JARVIS runs on a remote
-server (Render, a VPS, etc.), it has no browser and no screen of its own —
-opening a real youtube.com tab there does nothing the user can see, and
-youtube.com itself can't be scripted from outside to search/scroll/select for
-someone else's tab anyway (no supported API for that). So instead: JARVIS
-fetches real results from the YouTube Data API (server-side, needs
-YOUTUBE_API_KEY), and the RESULTS + PLAYER live in JARVIS's own page,
-controlled the same way music playback already is — via small messages the
-server relays to the browser after a tool call.
-
-youtube_search does the one genuinely server-side thing here (the actual API
-call). youtube_play and scroll_youtube_results are pure UI commands, same
-shape as play_track/skip/pause in tools.py.
+Why search happens server-side instead of just "open YouTube and search there":
+once JARVIS runs on a remote server (Render, a VPS, etc.), it has no browser
+and no screen of its own, and youtube.com has no supported way to be
+remote-controlled from outside anyway (no API for searching/scrolling/clicking
+on someone else's open tab). So JARVIS fetches real results from the YouTube
+Data API (server-side, needs YOUTUBE_API_KEY) and shows them as a list in its
+own page — but actually PLAYING a video opens it in a real youtube.com tab in
+the user's own browser (same mechanism as open_website), not an embedded
+player. An embedded iframe can't be made fullscreen, can't be resized, and
+generally behaves like a worse YouTube than just... YouTube — there's no
+upside to it once you can already open a real tab.
 """
 import asyncio
 import os
@@ -31,7 +29,7 @@ async def youtube_search(query: str) -> dict:
 
     Use this instead of open_website for anything YouTube-related — searching,
     finding a video, "play X on YouTube". Follow up with youtube_play once you
-    know which result the user wants.
+    know which result the user wants — that opens the real video in a new tab.
 
     Args:
         query: what to search for.
@@ -67,16 +65,20 @@ async def youtube_search(query: str) -> dict:
         global _last_results
         _last_results = videos
         # `videos` (with thumbnails + real IDs) goes back as the function_response —
-        # server.py relays THAT to the browser to render the panel. The model just
-        # needs enough to talk about the results, but the extra fields are harmless
-        # for it to see too.
+        # server.py relays THAT to the browser to render the results list. The model
+        # just needs enough to talk about the results, but the extra fields are
+        # harmless for it to see too.
         return {"result": "ok", "count": len(videos), "results": videos}
     except Exception as e:
         return {"result": "error", "message": str(e)}
 
 
 async def youtube_play(index_or_video_id: str) -> dict:
-    """Play one of the videos from the last search results in JARVIS's embedded player.
+    """Open one of the videos from the last search results in a real YouTube tab.
+
+    This opens an actual youtube.com/watch page in the user's own browser — not an
+    embedded player — so fullscreen, quality settings, captions, etc. all just work
+    normally, the same as if they'd clicked the video on youtube.com themselves.
 
     Args:
         index_or_video_id: either the 1-based number of a result from the last
@@ -90,7 +92,7 @@ async def youtube_play(index_or_video_id: str) -> dict:
             video_id = _last_results[i]["video_id"]
         else:
             return {"result": "error", "message": f"no result #{video_id} — search first, or check the number."}
-    return {"result": "ok", "video_id": video_id}
+    return {"result": "ok", "video_id": video_id, "url": f"https://www.youtube.com/watch?v={video_id}"}
 
 
 async def scroll_youtube_results(direction: str) -> dict:
@@ -107,12 +109,11 @@ async def scroll_youtube_results(direction: str) -> dict:
 
 def to_youtube_command(name: str, args: dict):
     """Map a function_call (name + args) -> the browser command, same pattern as
-    tools.py's to_play_command. The frontend resolves index_or_id against the
-    results list IT already has (from the youtube_results message), so no
-    server-side lookup is needed here.
+    tools.py's to_play_command. youtube_play is NOT handled here on purpose — its
+    useful payload (the resolved video URL) comes from its return value, not its
+    args, so server.py relays that via the function_response path instead (same
+    as open_website).
     """
-    if name == "youtube_play":
-        return {"type": "youtube_play", "index_or_id": str(args.get("index_or_video_id", ""))}
     if name == "scroll_youtube_results":
         return {"type": "youtube_scroll", "direction": args.get("direction", "down")}
     return None
