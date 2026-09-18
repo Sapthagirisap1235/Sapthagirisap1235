@@ -207,6 +207,12 @@ async def ws(websocket: WebSocket):
                         await websocket.send_text(json.dumps({"type": "open_url", "url": resp["url"]}))
                     elif fr.name == "youtube_search" and resp.get("result") == "ok":
                         await websocket.send_text(json.dumps({"type": "youtube_results", "results": resp.get("results", [])}))
+                    elif fr.name == "youtube_play" and resp.get("url"):
+                        # youtube_play resolves a real youtube.com/watch URL server-side
+                        # (see adk/youtube_tools.py) — relay it the same way open_website
+                        # does, so the browser opens the ACTUAL YouTube site/app, not an
+                        # embedded player on this page.
+                        await websocket.send_text(json.dumps({"type": "open_url", "url": resp["url"]}))
         if getattr(event, "interrupted", None):
             await websocket.send_text(json.dumps({"type": "interrupted"}))   # barge-in
 
